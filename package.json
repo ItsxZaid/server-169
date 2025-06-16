@@ -1,0 +1,31 @@
+{
+  "name": "server-169",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "build": "npm run db:generate && npm run db:migrate &&tsc",
+    "start": "node dist/index.js",
+    "dev": "nodemon src/index.ts",
+    "deploy": "ts-node src/deploy-commands.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "ts-node src/db/migrate.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "better-sqlite3": "^11.10.0",
+    "discord.js": "^14.19.3",
+    "dotenv": "^16.5.0",
+    "drizzle-orm": "^0.44.2"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^24.0.1",
+    "drizzle-kit": "^0.31.1",
+    "nodemon": "^3.1.10",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3"
+  }
+}
