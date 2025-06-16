@@ -3,6 +3,7 @@ import {
   ButtonBuilder,
   ButtonStyle,
   GuildMember,
+  MessageFlags,
   TextChannel,
 } from "discord.js";
 import type { Client } from "discord.js";
@@ -39,24 +40,23 @@ export async function execute(client: Client, member: GuildMember, db: DB) {
       );
     } else {
       if (welcomeChannel) {
-        await welcomeChannel.send(
-          `👋 Welcome @${member.user.username} 🎉 We're excited to have you here.`,
+        await welcomeChannel.send(`
+               👋 Welcome <@${member.id}>! 🎉 We're excited to have you here.`);
+
+        const registerButton = new ButtonBuilder()
+          .setCustomId(`register_button_click:${member.id}`)
+          .setLabel("🚀 Complete Your Registration")
+          .setStyle(ButtonStyle.Primary);
+
+        const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+          registerButton,
         );
+
+        await welcomeChannel.send({
+          content: `<@${member.id}>! Click the button below to register and unlock the server.`,
+          components: [row],
+        });
       }
-
-      const registerButton = new ButtonBuilder()
-        .setCustomId("register_button_click")
-        .setLabel("🚀 Complete Your Registration")
-        .setStyle(ButtonStyle.Primary);
-
-      const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-        registerButton,
-      );
-
-      await member.send({
-        content: `**🎉 Welcome to ${member.guild.name}, ${member.user.username}!**\n\nYou're almost ready to begin. Just one last step!\n\nClick the button below to complete your quick registration and unlock the full server experience. 🚪✨`,
-        components: [row],
-      });
 
       await db.insert(users).values({
         user_discord_id: member.id,

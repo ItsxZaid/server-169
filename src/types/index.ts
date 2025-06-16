@@ -7,6 +7,7 @@ import {
   Collection,
   ModalSubmitInteraction,
   SlashCommandBuilder,
+  StringSelectMenuInteraction,
 } from "discord.js";
 import type { getDb } from "../db/index";
 export type DB = ReturnType<typeof getDb>;
@@ -16,6 +17,7 @@ export interface CustomClient extends Client {
   buttons: Collection<string, Button>;
   modals: Collection<string, Modal>;
   events: Collection<string, Event>;
+  selects: Collection<string, SelectMenu>;
 }
 
 export interface Command {
@@ -43,4 +45,12 @@ export interface Button {
 export interface Modal {
   customId: string;
   execute: (interaction: ModalSubmitInteraction, db: DB) => Promise<void>;
+}
+
+export interface SelectMenu {
+  execute: (
+    interaction: StringSelectMenuInteraction,
+    db: DB,
+    client: CustomClient,
+  ) => Promise<void>;
 }
