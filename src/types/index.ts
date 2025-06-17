@@ -39,7 +39,11 @@ export interface Event {
 
 export interface Button {
   customId: string;
-  execute: (interaction: ButtonInteraction, db: DB) => Promise<void>;
+  execute: (
+    interaction: ButtonInteraction,
+    db: DB,
+    client: CustomClient,
+  ) => Promise<void>;
 }
 
 export interface Modal {

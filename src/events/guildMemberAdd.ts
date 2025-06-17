@@ -60,7 +60,7 @@ export async function execute(client: Client, member: GuildMember, db: DB) {
 
       await db.insert(users).values({
         user_discord_id: member.id,
-        server: 169,
+        server: "169",
         in_game_name: member.user.username,
         rank: "R1",
         alliance: "none",

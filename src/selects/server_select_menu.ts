@@ -41,7 +41,7 @@ export async function execute(
     await db
       .update(users)
       .set({
-        server: parseInt(selectedServerId, 10),
+        server: selectedServerId,
         status: "pending",
       })
       .where(eq(users.user_discord_id, userDiscordId));

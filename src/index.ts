@@ -101,7 +101,7 @@ async function main() {
         console.log(`[BUTTON] Button interaction: ${interaction.customId}`);
         const button = client.buttons.get(prefix);
         if (button) {
-          await button.execute(interaction, db);
+          await button.execute(interaction, db, client);
         } else {
           console.warn(`[BUTTON] No handler found for: ${customCode}`);
         }
