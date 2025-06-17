@@ -9,8 +9,10 @@ import {
   Button,
   Modal,
   SelectMenu,
+  CronJob,
 } from "./types";
 import { getDb } from "./db";
+import cron from "node-cron";
 
 async function main() {
   const client = new Client({
@@ -28,6 +30,7 @@ async function main() {
   client.modals = new Collection<string, Modal>();
   client.events = new Collection<string, Event>();
   client.selects = new Collection<string, SelectMenu>();
+  client.crons = new Collection<string, CronJob>();
 
   const loadHandlers = async <T>(
     dir: string,
@@ -74,11 +77,43 @@ async function main() {
     }
   };
 
+  const loadCronJobs = async (dir: string) => {
+    const base = path.join(__dirname, dir);
+    try {
+      const files = (await fs.readdir(base)).filter(
+        (f) => f.endsWith(".ts") || f.endsWith(".js"),
+      );
+      for (const file of files) {
+        const mod = await import(path.join(base, file));
+        const job: CronJob = mod.default || mod;
+
+        if (job.meta && job.execute) {
+          if (cron.validate(job.meta.schedule)) {
+            client.crons?.set(job.meta.id, job);
+            cron.schedule(job.meta.schedule, () => {
+              job.execute(client, db);
+            });
+            console.log(
+              `[LOAD] Scheduled cron job: ${job.meta.id} (${job.meta.schedule})`,
+            );
+          } else {
+            console.error(
+              `[ERROR] Invalid cron schedule for ${job.meta.id}: ${job.meta.schedule}`,
+            );
+          }
+        }
+      }
+    } catch (error) {
+      console.error(`[ERROR] Failed to load cron jobs from ${dir}:`, error);
+    }
+  };
+
   await loadHandlers<Command>("commands", client.commands);
   await loadEvents("events");
   await loadHandlers<Button>("buttons", client.buttons);
   await loadHandlers<Modal>("modals", client.modals);
   await loadHandlers<SelectMenu>("selects", client.selects);
+  await loadCronJobs("crons");
 
   client.events.forEach((event) => {
     const fn = (...args: any[]) => event.execute(client, ...args, db);
@@ -96,10 +131,12 @@ async function main() {
     try {
       if (interaction.isButton()) {
         const customId = interaction.customId ?? "";
-        const [prefix, customCode] = customId.split(":");
+        const [prefix, raw] = customId.split(":");
+
+        const customCode = prefix?.replace(/\[.*\]$/, "");
 
         console.log(`[BUTTON] Button interaction: ${interaction.customId}`);
-        const button = client.buttons.get(prefix);
+        const button = client.buttons.get(customCode);
         if (button) {
           await button.execute(interaction, db, client);
         } else {
@@ -107,10 +144,12 @@ async function main() {
         }
       } else if (interaction.isModalSubmit()) {
         const customId = interaction.customId ?? "";
-        const [prefix, customCode] = customId.split(":");
+        const [prefix, raw] = customId.split(":");
+
+        const customCode = prefix?.replace(/\[.*\]$/, "");
 
         console.log(`[MODAL] Modal submit: ${interaction.customId}`);
-        const modal = client.modals.get(prefix);
+        const modal = client.modals.get(customCode);
 
         if (modal) {
           await modal.execute(interaction, db);
@@ -163,6 +202,7 @@ async function main() {
     console.log(`[INFO] Buttons loaded: ${client.buttons.size}`);
     console.log(`[INFO] Modals loaded: ${client.modals.size}`);
     console.log(`[INFO] Selects loaded: ${client.selects.size}`);
+    console.log(`[INFO] Cron jobs loaded and scheduled: ${client.crons?.size}`);
   });
 
   await client.login(process.env.DISCORD_TOKEN);

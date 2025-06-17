@@ -18,6 +18,7 @@ export interface CustomClient extends Client {
   modals: Collection<string, Modal>;
   events: Collection<string, Event>;
   selects: Collection<string, SelectMenu>;
+  crons?: Collection<string, CronJob>;
 }
 
 export interface Command {
@@ -57,4 +58,12 @@ export interface SelectMenu {
     db: DB,
     client: CustomClient,
   ) => Promise<void>;
+}
+
+export interface CronJob {
+  meta: {
+    id: string;
+    schedule: string;
+  };
+  execute: (client: Client, db: DB) => void;
 }
