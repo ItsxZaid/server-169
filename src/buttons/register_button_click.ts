@@ -1,5 +1,3 @@
-// src/interactions/buttons/registerButtonClick.ts
-
 import {
   ActionRowBuilder,
   ButtonInteraction,

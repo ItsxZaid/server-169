@@ -117,12 +117,6 @@ async function main() {
         } else {
           console.warn(`[MODAL] No handler found for: ${customCode}`);
         }
-        // } else if (interaction.isChatInputCommand()) {
-        //   console.log(`[COMMAND] Slash command: ${interaction.commandName}`);
-        //   const command = client.commands.get(interaction.commandName);
-        //   if (command) {
-        //     await command.execute(interaction, db);
-        //   }
       } else if (interaction.isStringSelectMenu()) {
         const customId = interaction.customId ?? "";
         const [prefix, customCode] = customId.split(":");
@@ -133,6 +127,12 @@ async function main() {
           await selectMenuHandler.execute(interaction, db, client);
         } else {
           console.warn(`[SELECT] No handler found for: ${customId}`);
+        }
+      } else if (interaction.isChatInputCommand()) {
+        console.log(`[COMMAND] Slash command: ${interaction.commandName}`);
+        const command = client.commands.get(interaction.commandName);
+        if (command) {
+          await command.execute(interaction, client, db);
         }
       }
     } catch (error) {

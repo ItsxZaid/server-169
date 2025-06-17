@@ -21,6 +21,12 @@ export async function execute(interaction: ModalSubmitInteraction, db: DB) {
   const inGameName = interaction.fields.getTextInputValue("in_game_name_input");
   console.log(`[ModalSubmit] Retrieved in-game name: ${inGameName}`);
 
+  await db
+    .update(users)
+    .set({
+      in_game_name: inGameName,
+    })
+    .where(eq(users.user_discord_id, interaction.user.id));
   const guild = interaction.guild;
   if (!guild) {
     console.warn(`[ModalSubmit] No guild found for interaction.`);
