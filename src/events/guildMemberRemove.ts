@@ -1,8 +1,8 @@
 import { GuildMember } from "discord.js";
 import type { Client } from "discord.js";
 import { DB } from "../types";
-import { users } from "../db/schema";
-import { eq } from "drizzle-orm";
+import { users, events, buff_bookings } from "../db/schema";
+import { eq, or } from "drizzle-orm";
 
 export const name = "guildMemberRemove";
 export const once = false;
@@ -18,6 +18,23 @@ export async function execute(client: Client, member: GuildMember, db: DB) {
     });
 
     if (existingUser) {
+      await db
+        .delete(buff_bookings)
+        .where(
+          or(
+            eq(buff_bookings.booked_by_discord_id, member.id),
+            eq(buff_bookings.giver_discord_id, member.id),
+          ),
+        );
+      console.log(
+        `[DB] Deleted buff bookings for departing user ${member.id}.`,
+      );
+
+      await db
+        .delete(events)
+        .where(eq(events.created_by_discord_id, member.id));
+      console.log(`[DB] Deleted events for departing user ${member.id}.`);
+
       await db.delete(users).where(eq(users.user_discord_id, member.id));
       console.log(
         `[DB] Successfully deleted record for user ${member.user.tag} (${member.id}) who left the server.`,
@@ -29,8 +46,8 @@ export async function execute(client: Client, member: GuildMember, db: DB) {
         if (logChannel && logChannel.isTextBased()) {
           await logChannel.send(
             `📤 **Member Left:** ${member.user.tag} (${member.id})\n` +
-              `**Database:** Record removed\n` +
-              `**Time:** ${new Date().toISOString()}`,
+              `**Database:** All associated records removed (user, events, buffs)\n` +
+              `**Time:** <t:${Math.floor(Date.now() / 1000)}:F>`,
           );
         }
       }
@@ -52,7 +69,9 @@ export async function execute(client: Client, member: GuildMember, db: DB) {
         await errorChannel.send(
           `❌ **Error in guildMemberRemove:**\n` +
             `**User:** ${member.user.tag} (${member.id})\n` +
-            `**Error:** ${error instanceof Error ? error.message : "Unknown error"}`,
+            `**Error:** ${
+              error instanceof Error ? error.message : "Unknown error"
+            }`,
         );
       }
     }

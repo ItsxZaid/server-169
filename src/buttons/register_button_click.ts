@@ -65,6 +65,8 @@ export async function execute(interaction: ButtonInteraction, db: DB) {
     modal.addComponents(firstActionRow);
 
     await interaction.showModal(modal);
+
+    await interaction.message.edit({ content: "‎", components: [] });
   } catch (error) {
     console.error("Failed to show registration modal:", error);
     await interaction.reply({
