@@ -42,6 +42,30 @@ export const events = sqliteTable("events", {
   updated_at: text("updated_at").default("CURRENT_TIMESTAMP").notNull(),
 });
 
+export const buff_bookings = sqliteTable("buff_bookings", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+
+  buff_type: text("buff_type", {
+    enum: ["research", "training", "building"],
+  }).notNull(),
+
+  slot_time: text("slot_time").notNull().unique(),
+
+  booked_by_discord_id: text("booked_by_discord_id", { length: 25 })
+    .notNull()
+    .references(() => users.user_discord_id),
+
+  giver_discord_id: text("giver_discord_id", { length: 25 }).references(
+    () => users.user_discord_id,
+  ),
+
+  notification_sent: integer("notification_sent", { mode: "boolean" })
+    .default(false)
+    .notNull(),
+
+  created_at: text("created_at").default("CURRENT_TIMESTAMP").notNull(),
+});
+
 export const eventsRelations = relations(events, ({ one }) => ({
   author: one(users, {
     fields: [events.created_by_discord_id],
@@ -54,3 +78,6 @@ export type NewEvent = InferInsertModel<typeof events>;
 
 export type User = InferSelectModel<typeof users>;
 export type NewUser = InferInsertModel<typeof users>;
+
+export type BuffBooking = InferSelectModel<typeof buff_bookings>;
+export type NewBuffBooking = InferInsertModel<typeof buff_bookings>;
