@@ -111,7 +111,7 @@ export async function execute(interaction: ModalSubmitInteraction, db: DB) {
 
     const announcementEmbed = new EmbedBuilder()
       .setColor(eventType === "server-wide" ? 0xed4245 : 0x3498db)
-      .setTitle(`🎉 New Event: ${eventName}`)
+      .setTitle(`${eventName}`)
       .setDescription(infoText)
       .addFields(
         { name: "🗓️ Date", value: eventDate, inline: true },
@@ -122,9 +122,6 @@ export async function execute(interaction: ModalSubmitInteraction, db: DB) {
           inline: true,
         },
       )
-      .setFooter({
-        text: `Event ID: ${eventId} | Created by: ${interaction.user.username}`,
-      })
       .setTimestamp();
 
     if (rulesText) {

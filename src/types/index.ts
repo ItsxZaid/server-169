@@ -1,5 +1,3 @@
-export * from "./sql";
-
 import {
   ButtonInteraction,
   ChatInputCommandInteraction,
