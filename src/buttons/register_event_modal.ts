@@ -15,21 +15,26 @@ export async function execute(
 ) {
   try {
     const customId = interaction.customId;
-    const firstColonIndex = customId.indexOf(":");
-    const bracketIndex = customId.indexOf("[");
+    const [action, raw] = customId.split(":", 2);
 
-    const eventType = customId.substring(firstColonIndex + 1, bracketIndex);
-    const targetUserId = customId.substring(
-      bracketIndex + 1,
-      customId.length - 1,
-    );
+    let eventType = raw;
+    let targetUserId = interaction.user.id;
 
-    if (interaction.user.id !== targetUserId) {
-      await interaction.reply({
-        content: "You are not authorized to use this button.",
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
+    const match = raw.match(/^(.+)\[(.+)\]$/);
+
+    if (match) {
+      eventType = match[1];
+      const explicitTargetId = match[2];
+
+      if (interaction.user.id !== explicitTargetId) {
+        await interaction.reply({
+          content: "You are not authorized to use this button.",
+          flags: [MessageFlags.Ephemeral],
+        });
+        return;
+      }
+
+      targetUserId = explicitTargetId;
     }
 
     const modalCustomId = `register_event_modal:${eventType}[${targetUserId}]`;
@@ -58,14 +63,14 @@ export async function execute(
       .setCustomId("eventDate")
       .setLabel("Date of the Event")
       .setStyle(TextInputStyle.Short)
-      .setPlaceholder("YYYY-MM-DD (e.g., 2025-08-15)")
+      .setPlaceholder("DD-MM-YYYY (e.g., 15-08-2025)")
       .setRequired(true);
 
     const timeInput = new TextInputBuilder()
       .setCustomId("eventTime")
-      .setLabel("Time of the Event (in UTC)")
+      .setLabel("Time of the Event (in UK Time)")
       .setStyle(TextInputStyle.Short)
-      .setPlaceholder("HH:MM (e.g., 14:30 for 2:30 PM UTC)")
+      .setPlaceholder("HH:MM (e.g., 14:30 for 2:30 PM UK Time)")
       .setRequired(true);
 
     const imageUrlInput = new TextInputBuilder()

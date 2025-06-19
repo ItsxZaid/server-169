@@ -6,7 +6,7 @@ import {
   ButtonStyle,
 } from "discord.js";
 import { and, gte, lte } from "drizzle-orm";
-import { buff_bookings } from "../db/schema";
+import { buff_bookings, NewBuffBooking } from "../db/schema";
 import { DB, CustomClient } from "../types";
 import {
   format,
@@ -15,28 +15,35 @@ import {
   addDays,
   subDays,
   parse,
+  isValid,
 } from "date-fns";
+import { toZonedTime } from "date-fns-tz";
+
+const TIMEZONE = "Europe/London";
+type BuffType = NewBuffBooking["buff_type"];
 
 export async function execute(
   interaction: ButtonInteraction,
   db: DB,
   client: CustomClient,
 ) {
+  if (!interaction.guild) return;
   await interaction.deferUpdate();
 
   try {
     const [, dateInput] = interaction.customId.split(":");
-    let targetDate = parse(dateInput, "yyyy-MM-dd", new Date());
+    const targetDate = parse(dateInput, "yyyy-MM-dd", new Date());
 
-    if (isNaN(targetDate.getTime())) {
-      await interaction.editReply(
-        "An error occurred with the date. Please try again.",
-      );
+    if (!isValid(targetDate)) {
+      await interaction.editReply({
+        content: "An error occurred with the date. Please try again.",
+      });
       return;
     }
 
-    const dayStart = startOfDay(targetDate);
-    const dayEnd = endOfDay(targetDate);
+    const zonedTargetDate = toZonedTime(targetDate, TIMEZONE);
+    const dayStart = startOfDay(zonedTargetDate);
+    const dayEnd = endOfDay(zonedTargetDate);
 
     const bookingsForDay = await db
       .select()
@@ -48,41 +55,73 @@ export async function execute(
         ),
       );
 
-    const bookingsMap = new Map<number, (typeof bookingsForDay)[0]>();
-    bookingsForDay.forEach((booking) => {
-      const hour = new Date(booking.slot_time).getUTCHours();
-      bookingsMap.set(hour, booking);
-    });
-
-    const scheduleLines: string[] = [];
-    for (let hour = 0; hour < 24; hour++) {
-      const slotTime = new Date(dayStart);
-      slotTime.setUTCHours(hour);
-      const timestamp = Math.floor(slotTime.getTime() / 1000);
-
-      const booking = bookingsMap.get(hour);
-      if (booking) {
-        const buffType =
-          booking.buff_type.charAt(0).toUpperCase() +
-          booking.buff_type.slice(1);
-        scheduleLines.push(
-          `**<t:${timestamp}:t>** - ✅ [${buffType}] - Booked by <@${booking.booked_by_discord_id}>`,
-        );
-      } else {
-        scheduleLines.push(`**<t:${timestamp}:t>** - ⬜ Available`);
-      }
+    const userIds = [
+      ...new Set(bookingsForDay.map((b) => b.booked_by_discord_id)),
+    ];
+    const membersMap = new Map<string, string>();
+    if (userIds.length > 0) {
+      const members = await interaction.guild.members.fetch({ user: userIds });
+      members.forEach((member) =>
+        membersMap.set(member.id, member.displayName),
+      );
     }
 
-    const embed = new EmbedBuilder()
-      .setColor(0x0099ff)
-      .setTitle(
-        `Buff Schedule for: ${format(targetDate, "EEEE, MMMM d, yyyy")}`,
-      )
-      .setDescription(scheduleLines.join("\n") || "No slots available.")
-      .setFooter({ text: "All times are shown in your local timezone." });
+    const createScheduleEmbed = (
+      buffType: BuffType,
+      title: string,
+      color: number,
+    ) => {
+      const typeBookings = bookingsForDay.filter(
+        (b) => b.buff_type === buffType,
+      );
+      const bookingsMap = new Map();
+      typeBookings.forEach((booking) => {
+        const londonTime = toZonedTime(booking.slot_time, TIMEZONE);
+        const hour = londonTime.getHours();
+        bookingsMap.set(hour, booking);
+      });
 
-    const prevDay = subDays(targetDate, 1);
-    const nextDay = addDays(targetDate, 1);
+      const scheduleTable: string[] = [];
+      for (let hour = 0; hour < 24; hour++) {
+        const timeString = `${String(hour).padStart(2, "0")}:00`;
+        const booking = bookingsMap.get(hour);
+        const displayName = booking
+          ? membersMap.get(booking.booked_by_discord_id)
+          : null;
+        const displayValue = booking
+          ? `✅ ${displayName || `<@${booking.booked_by_discord_id}>`}`
+          : `⬜ Available`;
+        scheduleTable.push(`${timeString} : ${displayValue}`);
+      }
+      const description = `\`\`\`\n${scheduleTable.join("\n")}\n\`\`\``;
+
+      return new EmbedBuilder()
+        .setColor(color)
+        .setTitle(title)
+        .setDescription(description)
+        .setFooter({
+          text: `Schedule for ${format(zonedTargetDate, "EEEE, MMMM d, yyyy")}`,
+        });
+    };
+
+    const researchEmbed = createScheduleEmbed(
+      "research",
+      "🔬 Research Buff Schedule",
+      0x3498db,
+    );
+    const trainingEmbed = createScheduleEmbed(
+      "training",
+      "⚔️ Training Buff Schedule",
+      0xe74c3c,
+    );
+    const buildingEmbed = createScheduleEmbed(
+      "building",
+      "🏗️ Building Buff Schedule",
+      0xf1c40f,
+    );
+
+    const prevDay = subDays(zonedTargetDate, 1);
+    const nextDay = addDays(zonedTargetDate, 1);
 
     const navigationRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
@@ -90,8 +129,10 @@ export async function execute(
         .setLabel("⬅️ Previous Day")
         .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
-        .setCustomId(`buff_book_slot_init:${format(targetDate, "yyyy-MM-dd")}`)
-        .setLabel("✍️ Book a Buff Slot")
+        .setCustomId(
+          `buff_book_slot_init:${format(zonedTargetDate, "yyyy-MM-dd")}`,
+        )
+        .setLabel("✍️ Book a Slot")
         .setStyle(ButtonStyle.Primary),
       new ButtonBuilder()
         .setCustomId(`buffcal_nav:${format(nextDay, "yyyy-MM-dd")}`)
@@ -100,10 +141,8 @@ export async function execute(
     );
 
     await interaction.editReply({
-      embeds: [embed],
+      embeds: [researchEmbed, trainingEmbed, buildingEmbed],
       components: [navigationRow],
     });
-  } catch (error) {
-    console.error("Error handling buff calendar navigation:", error);
-  }
+  } catch (error) {}
 }

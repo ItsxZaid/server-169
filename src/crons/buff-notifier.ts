@@ -2,6 +2,9 @@ import { EmbedBuilder } from "discord.js";
 import { and, gte, lte, eq } from "drizzle-orm";
 import { CronJob } from "../types";
 import { buff_bookings } from "../db/schema";
+import { formatInTimeZone } from "date-fns-tz";
+
+const TIMEZONE = "Europe/London";
 
 const job: CronJob = {
   meta: {
@@ -9,12 +12,9 @@ const job: CronJob = {
     schedule: "* * * * *",
   },
   execute: async (client, db) => {
-    console.log("[CRON] Checking for upcoming buff duties...");
-
     const now = new Date();
-
-    const notificationWindowStart = new Date(now.getTime() + 5 * 60 * 1000);
-    const notificationWindowEnd = new Date(now.getTime() + 6 * 60 * 1000);
+    const notificationWindowStart = new Date(now.getTime() + 4 * 60 * 1000);
+    const notificationWindowEnd = new Date(now.getTime() + 5 * 60 * 1000);
 
     try {
       const upcomingBookings = await db
@@ -32,61 +32,99 @@ const job: CronJob = {
         return;
       }
 
+      const buffGiverRole = await client.guilds
+        .fetch(process.env.SERVER_ID!)
+        .then((guild) =>
+          guild.roles.cache.find((role) => role.name === "BUFF_GIVER"),
+        );
+
+      if (!buffGiverRole) {
+        return;
+      }
+
       for (const booking of upcomingBookings) {
-        const giverId =
-          booking.giver_discord_id || process.env.DEFAULT_BUFF_GIVER_ID;
-        const requesterId = booking.booked_by_discord_id;
+        let giverId = booking.giver_discord_id;
 
         if (!giverId) {
-          console.error(
-            `[CRON] No buff giver ID found for booking ${booking.id}.`,
-          );
+          const membersWithRole = await client.guilds
+            .fetch(process.env.SERVER_ID!)
+            .then((guild) => guild.members.fetch({ withPresences: true }))
+            .then((members) =>
+              members.filter(
+                (m) =>
+                  m.roles.cache.has(buffGiverRole.id) &&
+                  m.presence?.status === "online",
+              ),
+            );
+
+          if (membersWithRole.size > 0) {
+            giverId = membersWithRole.random()!.id;
+          } else {
+            giverId = process.env.DEFAULT_BUFF_GIVER_ID!;
+          }
+        }
+
+        if (!giverId) {
           continue;
         }
 
-        const giver = await client.users.fetch(giverId);
-        const requester = await client.users.fetch(requesterId);
+        const giver = await client.users.fetch(giverId).catch(() => null);
+        const requester = await client.users
+          .fetch(booking.booked_by_discord_id)
+          .catch(() => null);
 
-        if (giver) {
-          const reminderEmbed = new EmbedBuilder()
+        if (giver && requester) {
+          const slotTime = new Date(booking.slot_time);
+          const formattedTime = formatInTimeZone(
+            slotTime,
+            TIMEZONE,
+            "HH:mm 'UK Time'",
+          );
+          const buffTypeDisplay =
+            booking.buff_type.charAt(0).toUpperCase() +
+            booking.buff_type.slice(1);
+
+          const giverEmbed = new EmbedBuilder()
             .setColor(0x3498db)
-            .setTitle("Buff Duty Reminder")
+            .setTitle("✨ Buff Duty Reminder")
             .setDescription(`You have a buff to give in **5 minutes!**`)
             .addFields(
               {
-                name: "User to Buff",
+                name: "👤 User to Buff",
                 value: `${requester} (${requester.tag})`,
+                inline: true,
               },
               {
-                name: "Buff Type",
-                value:
-                  booking.buff_type.charAt(0).toUpperCase() +
-                  booking.buff_type.slice(1),
+                name: "🛠️ Buff Type",
+                value: buffTypeDisplay,
+                inline: true,
               },
               {
-                name: "Time",
-                value: `<t:${Math.floor(new Date(booking.slot_time).getTime() / 1000)}:T>`,
+                name: "⏰ Time",
+                value: formattedTime,
+                inline: true,
               },
             );
 
-          await giver.send({ embeds: [reminderEmbed] });
+          await giver.send({ embeds: [giverEmbed] });
+
+          const requesterEmbed = new EmbedBuilder()
+            .setColor(0x57f287)
+            .setTitle(`🔔 Reminder: Your ${buffTypeDisplay} Buff is Soon!`)
+            .setDescription(
+              `Your scheduled **${buffTypeDisplay}** buff is in **5 minutes** at **${formattedTime}**.`,
+            )
+            .setFooter({ text: "Please be online and ready!" });
+
+          await requester.send({ embeds: [requesterEmbed] });
 
           await db
             .update(buff_bookings)
-            .set({ notification_sent: true })
+            .set({ notification_sent: true, giver_discord_id: giverId })
             .where(eq(buff_bookings.id, booking.id));
-
-          console.log(
-            `[CRON] Sent buff reminder to ${giver.tag} for booking ${booking.id}.`,
-          );
         }
       }
-    } catch (error) {
-      console.error(
-        "[CRON] An error occurred during the buff-notifier job:",
-        error,
-      );
-    }
+    } catch (error) {}
   },
 };
 
