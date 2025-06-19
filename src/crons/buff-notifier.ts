@@ -83,8 +83,8 @@ const job: CronJob = {
           );
           const bookingsMap = new Map();
           typeBookings.forEach((booking) => {
-            const utcTime = toZonedTime(booking.slot_time, TIMEZONE);
-            const hour = utcTime.getUTCHours();
+            const slotDate = new Date(booking.slot_time);
+            const hour = slotDate.getUTCHours();
             bookingsMap.set(hour, booking);
           });
 
@@ -109,7 +109,7 @@ const job: CronJob = {
             .setFooter({
               text: `Schedule for ${format(
                 zonedTargetDate,
-                "EEEE, MMMM d",
+                "EEEE, MMMM d, yyyy",
               )} | All times are UTC.`,
             });
         };

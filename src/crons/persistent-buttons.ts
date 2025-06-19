@@ -84,8 +84,8 @@ const job: CronJob = {
           );
           const bookingsMap = new Map();
           typeBookings.forEach((booking) => {
-            const utcTime = toZonedTime(booking.slot_time, TIMEZONE);
-            const hour = utcTime.getUTCHours();
+            const slotDate = new Date(booking.slot_time);
+            const hour = slotDate.getUTCHours();
             bookingsMap.set(hour, booking);
           });
 
@@ -110,7 +110,7 @@ const job: CronJob = {
             .setFooter({
               text: `Schedule for ${format(
                 zonedTargetDate,
-                "EEEE, MMMM d",
+                "EEEE, MMMM d, yyyy",
               )} | All times are UTC.`,
             });
         };
@@ -135,24 +135,24 @@ const job: CronJob = {
         const nextDay = addDays(zonedTargetDate, 1);
 
         const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-          new ButtonBuilder()
-            .setCustomId(
-              `buffcal_nav:${formatInTimeZone(prevDay, TIMEZONE, "yyyy-MM-dd")}`,
-            )
-            .setLabel("⬅️ Previous Day")
-            .setStyle(ButtonStyle.Secondary),
+          // new ButtonBuilder()
+          //   .setCustomId(
+          //     `buffcal_nav:${formatInTimeZone(prevDay, TIMEZONE, "yyyy-MM-dd")}`,
+          //   )
+          //   .setLabel("⬅️ Previous Day")
+          //   .setStyle(ButtonStyle.Secondary),
           new ButtonBuilder()
             .setCustomId(
               `buff_book_slot_init:${formatInTimeZone(zonedTargetDate, TIMEZONE, "yyyy-MM-dd")}`,
             )
             .setLabel("✍️ Book a Buff Slot")
             .setStyle(ButtonStyle.Primary),
-          new ButtonBuilder()
-            .setCustomId(
-              `buffcal_nav:${formatInTimeZone(nextDay, TIMEZONE, "yyyy-MM-dd")}`,
-            )
-            .setLabel("Next Day ➡️")
-            .setStyle(ButtonStyle.Secondary),
+          // new ButtonBuilder()
+          //   .setCustomId(
+          //     `buffcal_nav:${formatInTimeZone(nextDay, TIMEZONE, "yyyy-MM-dd")}`,
+          //   )
+          //   .setLabel("Next Day ➡️")
+          //   .setStyle(ButtonStyle.Secondary),
         );
 
         await buffChannel.send({

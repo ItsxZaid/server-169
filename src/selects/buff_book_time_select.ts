@@ -50,8 +50,8 @@ async function getUpdatedSchedulePayload(guild: any, db: DB, targetDate: Date) {
     const typeBookings = bookingsForDay.filter((b) => b.buff_type === buffType);
     const bookingsMap = new Map();
     typeBookings.forEach((booking) => {
-      const utcTime = toZonedTime(booking.slot_time, TIMEZONE);
-      const hour = utcTime.getUTCHours();
+      const slotDate = new Date(booking.slot_time);
+      const hour = slotDate.getUTCHours();
       bookingsMap.set(hour, booking);
     });
 
@@ -155,12 +155,20 @@ export async function execute(
       notification_sent: false,
     };
 
-    await db.insert(buff_bookings).values(newBooking);
+    console.log("Attempting to insert booking:", newBooking);
+
+    try {
+      const result = await db.insert(buff_bookings).values(newBooking);
+
+      console.log("Database insert result:", result);
+    } catch (error) {
+      console.error("The insert FAILED with an error:", error);
+    }
 
     let footerText =
       "The schedule will update shortly. You will receive a DM reminder 5 minutes before your slot.";
 
-    if (isToday(slotTime) && interaction.guild) {
+    if (interaction.guild) {
       const buffChannelName = "buff-management";
       const buffChannel = interaction.guild.channels.cache.find(
         (c) => c.name === buffChannelName && c.type === ChannelType.GuildText,
@@ -168,8 +176,10 @@ export async function execute(
 
       if (buffChannel) {
         const messages = await buffChannel.messages.fetch({ limit: 10 });
+
+        const scheduleDateString = format(slotTime, "EEEE, MMMM d, yyyy");
         const messageToEdit = messages.find((m) =>
-          m.embeds[0]?.title?.includes("Schedule"),
+          m.embeds[0]?.footer?.text?.includes(scheduleDateString),
         );
 
         if (messageToEdit) {

@@ -51,10 +51,14 @@ export async function execute(
 
     for (let hour = 0; hour < 24; hour++) {
       const isAvailable = !bookedHours.has(hour);
-      const isFutureSlot = !isBookingForToday || hour > now.getUTCHours();
+
+      const nowInUtc = toZonedTime(new Date(), TIMEZONE);
+      const dateIsInFuture = targetDate > nowInUtc;
+      const isFutureSlot = dateIsInFuture || hour > nowInUtc.getUTCHours();
 
       if (isAvailable && isFutureSlot) {
         const dateString = `${dateInput}T${String(hour).padStart(2, "0")}:00:00`;
+
         const slotDateTime = new Date(dateString + "Z");
 
         const timestamp = Math.floor(slotDateTime.getTime() / 1000);

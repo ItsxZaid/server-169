@@ -49,8 +49,8 @@ export async function execute(
     let targetDate: Date;
 
     if (dateInput) {
-      targetDate = parse(dateInput, "yyyy-MM-dd", new Date());
-      if (!isValid(targetDate)) {
+      targetDate = new Date(`${dateInput}T00:00:00Z`);
+      if (isNaN(targetDate.getTime())) {
         await interaction.editReply({
           content: "❌ Invalid date format. Please use `yyyy-MM-DD`.",
         });
@@ -95,8 +95,8 @@ export async function execute(
       );
       const bookingsMap = new Map();
       typeBookings.forEach((booking) => {
-        const utcTime = toZonedTime(booking.slot_time, TIMEZONE);
-        const hour = utcTime.getUTCHours();
+        const slotDate = new Date(booking.slot_time);
+        const hour = slotDate.getUTCHours();
         bookingsMap.set(hour, booking);
       });
 
@@ -143,24 +143,24 @@ export async function execute(
     const nextDay = addDays(zonedTargetDate, 1);
 
     const navigationRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder()
-        .setCustomId(
-          `buffcal_nav:${formatInTimeZone(prevDay, TIMEZONE, "yyyy-MM-dd")}`,
-        )
-        .setLabel("⬅️ Previous Day")
-        .setStyle(ButtonStyle.Secondary),
+      // new ButtonBuilder()
+      //   .setCustomId(
+      //     `buffcal_nav:${formatInTimeZone(prevDay, TIMEZONE, "yyyy-MM-dd")}`,
+      //   )
+      //   .setLabel("⬅️ Previous Day")
+      //   .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId(
           `buff_book_slot_init:${formatInTimeZone(zonedTargetDate, TIMEZONE, "yyyy-MM-dd")}`,
         )
         .setLabel("✍️ Book a Slot")
         .setStyle(ButtonStyle.Primary),
-      new ButtonBuilder()
-        .setCustomId(
-          `buffcal_nav:${formatInTimeZone(nextDay, TIMEZONE, "yyyy-MM-dd")}`,
-        )
-        .setLabel("Next Day ➡️")
-        .setStyle(ButtonStyle.Secondary),
+      // new ButtonBuilder()
+      //   .setCustomId(
+      //     `buffcal_nav:${formatInTimeZone(nextDay, TIMEZONE, "yyyy-MM-dd")}`,
+      //   )
+      //   .setLabel("Next Day ➡️")
+      //   .setStyle(ButtonStyle.Secondary),
     );
 
     await interaction.editReply({

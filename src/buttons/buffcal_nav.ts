@@ -74,8 +74,8 @@ export async function execute(
       );
       const bookingsMap = new Map();
       typeBookings.forEach((booking) => {
-        const utcTime = toZonedTime(booking.slot_time, TIMEZONE);
-        const hour = utcTime.getUTCHours();
+        const slotDate = new Date(booking.slot_time);
+        const hour = slotDate.getUTCHours();
         bookingsMap.set(hour, booking);
       });
 
