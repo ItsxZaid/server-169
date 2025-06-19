@@ -8,10 +8,10 @@ import {
 import { DB, CustomClient } from "../types";
 import { and, gte, lte, eq } from "drizzle-orm";
 import { buff_bookings } from "../db/schema";
-import { startOfDay, endOfDay, parse } from "date-fns";
+import { startOfDay, endOfDay, isToday } from "date-fns";
 import { toZonedTime, formatInTimeZone } from "date-fns-tz";
 
-const TIMEZONE = "Europe/London";
+const TIMEZONE = "UTC";
 
 export async function execute(
   interaction: StringSelectMenuInteraction,
@@ -24,10 +24,9 @@ export async function execute(
     const [, dateInput] = interaction.customId.split(":");
     const selectedBuffType = interaction.values[0];
 
-    const targetDate = parse(dateInput, "yyyy-MM-dd", new Date());
-    const zonedTargetDate = toZonedTime(targetDate, TIMEZONE);
-    const dayStart = startOfDay(zonedTargetDate);
-    const dayEnd = endOfDay(zonedTargetDate);
+    const targetDate = new Date(dateInput + "T00:00:00.000Z");
+    const dayStart = startOfDay(targetDate);
+    const dayEnd = endOfDay(targetDate);
 
     const bookingsForDay = await db
       .select({ slot_time: buff_bookings.slot_time })
@@ -42,23 +41,27 @@ export async function execute(
 
     const bookedHours = new Set(
       bookingsForDay.map((b) => {
-        const londonTime = toZonedTime(b.slot_time, TIMEZONE);
-        return londonTime.getHours();
+        return new Date(b.slot_time).getUTCHours();
       }),
     );
 
     const availableSlots: { label: string; value: string }[] = [];
+    const now = new Date();
+    const isBookingForToday = isToday(targetDate);
+
     for (let hour = 0; hour < 24; hour++) {
-      if (!bookedHours.has(hour)) {
-        const dateString = `${dateInput}T${String(hour).padStart(
-          2,
-          "0",
-        )}:00:00`;
-        const zonedSlotTime = toZonedTime(dateString, TIMEZONE);
-        const timestamp = Math.floor(zonedSlotTime.getTime() / 1000);
-        const timeString = formatInTimeZone(zonedSlotTime, TIMEZONE, "HH:mm");
+      const isAvailable = !bookedHours.has(hour);
+      const isFutureSlot = !isBookingForToday || hour > now.getUTCHours();
+
+      if (isAvailable && isFutureSlot) {
+        const dateString = `${dateInput}T${String(hour).padStart(2, "0")}:00:00`;
+        const slotDateTime = new Date(dateString + "Z");
+
+        const timestamp = Math.floor(slotDateTime.getTime() / 1000);
+        const timeString = formatInTimeZone(slotDateTime, TIMEZONE, "HH:mm");
+
         availableSlots.push({
-          label: timeString,
+          label: `${timeString} UTC`,
           value: timestamp.toString(),
         });
       }
@@ -82,13 +85,13 @@ export async function execute(
       new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
         new StringSelectMenuBuilder()
           .setCustomId(`buff_book_time_select:${selectedBuffType}`)
-          .setPlaceholder("2. Great! Now select an available time slot.")
+          .setPlaceholder("2. Great! Now select an available time slot (UTC).")
           .setOptions(
             availableSlots.length > 0
               ? availableSlots
               : [
                   {
-                    label: "No more slots available for this day.",
+                    label: "No future slots available for this day.",
                     value: "none",
                   },
                 ],
@@ -100,8 +103,10 @@ export async function execute(
       content:
         availableSlots.length > 0
           ? "Please select an available time slot for your chosen buff."
-          : "Unfortunately, there are no more slots available for the selected buff on this day.",
+          : "Unfortunately, there are no more future slots available for the selected buff on this day.",
       components: [typeMenuRow, timeMenuRow],
     });
-  } catch (error) {}
+  } catch (error) {
+    console.error("Error in buff_book_type_select:", error);
+  }
 }

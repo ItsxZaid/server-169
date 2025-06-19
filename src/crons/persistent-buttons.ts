@@ -5,23 +5,22 @@ import {
   ButtonStyle,
   TextChannel,
   ChannelType,
-  CategoryChannel,
   MessageFlags,
-  GuildMember,
 } from "discord.js";
 import { CronJob } from "../types";
 import { format, addDays, subDays, startOfDay, endOfDay } from "date-fns";
-import { toZonedTime } from "date-fns-tz";
+import { toZonedTime, formatInTimeZone } from "date-fns-tz";
 import { and, gte, lte } from "drizzle-orm";
 import { buff_bookings, NewBuffBooking } from "../db/schema";
 
-const TIMEZONE = "Europe/London";
+// --- CHANGED ---
+const TIMEZONE = "UTC";
 type BuffType = NewBuffBooking["buff_type"];
 
 const job: CronJob = {
   meta: {
     id: "persistent-buttons",
-    schedule: "*/5 * * * *",
+    schedule: "*/1 * * * *",
   },
   execute: async (client, db) => {
     const guildId = process.env.SERVER_ID;
@@ -49,8 +48,10 @@ const job: CronJob = {
         }
 
         const targetDate = new Date();
-        const dayStart = startOfDay(toZonedTime(targetDate, TIMEZONE));
-        const dayEnd = endOfDay(dayStart);
+
+        const zonedTargetDate = toZonedTime(targetDate, TIMEZONE);
+        const dayStart = startOfDay(zonedTargetDate);
+        const dayEnd = endOfDay(zonedTargetDate);
 
         const bookingsForDay = await db
           .select()
@@ -83,8 +84,8 @@ const job: CronJob = {
           );
           const bookingsMap = new Map();
           typeBookings.forEach((booking) => {
-            const londonTime = toZonedTime(booking.slot_time, TIMEZONE);
-            const hour = londonTime.getHours();
+            const utcTime = toZonedTime(booking.slot_time, TIMEZONE);
+            const hour = utcTime.getUTCHours();
             bookingsMap.set(hour, booking);
           });
 
@@ -108,9 +109,9 @@ const job: CronJob = {
             .setDescription(description)
             .setFooter({
               text: `Schedule for ${format(
-                targetDate,
+                zonedTargetDate,
                 "EEEE, MMMM d",
-              )} | All times are UK.`,
+              )} | All times are UTC.`,
             });
         };
 
@@ -130,22 +131,26 @@ const job: CronJob = {
           0xf1c40f,
         );
 
-        const prevDay = subDays(targetDate, 1);
-        const nextDay = addDays(targetDate, 1);
+        const prevDay = subDays(zonedTargetDate, 1);
+        const nextDay = addDays(zonedTargetDate, 1);
 
         const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
           new ButtonBuilder()
-            .setCustomId(`buffcal_nav:${format(prevDay, "yyyy-MM-dd")}`)
+            .setCustomId(
+              `buffcal_nav:${formatInTimeZone(prevDay, TIMEZONE, "yyyy-MM-dd")}`,
+            )
             .setLabel("⬅️ Previous Day")
             .setStyle(ButtonStyle.Secondary),
           new ButtonBuilder()
             .setCustomId(
-              `buff_book_slot_init:${format(targetDate, "yyyy-MM-dd")}`,
+              `buff_book_slot_init:${formatInTimeZone(zonedTargetDate, TIMEZONE, "yyyy-MM-dd")}`,
             )
             .setLabel("✍️ Book a Buff Slot")
             .setStyle(ButtonStyle.Primary),
           new ButtonBuilder()
-            .setCustomId(`buffcal_nav:${format(nextDay, "yyyy-MM-dd")}`)
+            .setCustomId(
+              `buffcal_nav:${formatInTimeZone(nextDay, TIMEZONE, "yyyy-MM-dd")}`,
+            )
             .setLabel("Next Day ➡️")
             .setStyle(ButtonStyle.Secondary),
         );

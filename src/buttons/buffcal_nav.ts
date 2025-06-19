@@ -14,12 +14,11 @@ import {
   endOfDay,
   addDays,
   subDays,
-  parse,
   isValid,
 } from "date-fns";
-import { toZonedTime } from "date-fns-tz";
+import { toZonedTime, formatInTimeZone } from "date-fns-tz";
 
-const TIMEZONE = "Europe/London";
+const TIMEZONE = "UTC";
 type BuffType = NewBuffBooking["buff_type"];
 
 export async function execute(
@@ -32,7 +31,7 @@ export async function execute(
 
   try {
     const [, dateInput] = interaction.customId.split(":");
-    const targetDate = parse(dateInput, "yyyy-MM-dd", new Date());
+    const targetDate = new Date(dateInput + "T00:00:00.000Z");
 
     if (!isValid(targetDate)) {
       await interaction.editReply({
@@ -41,9 +40,8 @@ export async function execute(
       return;
     }
 
-    const zonedTargetDate = toZonedTime(targetDate, TIMEZONE);
-    const dayStart = startOfDay(zonedTargetDate);
-    const dayEnd = endOfDay(zonedTargetDate);
+    const dayStart = startOfDay(targetDate);
+    const dayEnd = endOfDay(targetDate);
 
     const bookingsForDay = await db
       .select()
@@ -76,8 +74,8 @@ export async function execute(
       );
       const bookingsMap = new Map();
       typeBookings.forEach((booking) => {
-        const londonTime = toZonedTime(booking.slot_time, TIMEZONE);
-        const hour = londonTime.getHours();
+        const utcTime = toZonedTime(booking.slot_time, TIMEZONE);
+        const hour = utcTime.getUTCHours();
         bookingsMap.set(hour, booking);
       });
 
@@ -100,7 +98,7 @@ export async function execute(
         .setTitle(title)
         .setDescription(description)
         .setFooter({
-          text: `Schedule for ${format(zonedTargetDate, "EEEE, MMMM d, yyyy")}`,
+          text: `Schedule for ${format(targetDate, "EEEE, MMMM d, yyyy")} | All times are UTC.`,
         });
     };
 
@@ -120,22 +118,30 @@ export async function execute(
       0xf1c40f,
     );
 
-    const prevDay = subDays(zonedTargetDate, 1);
-    const nextDay = addDays(zonedTargetDate, 1);
+    const prevDay = subDays(targetDate, 1);
+    const nextDay = addDays(targetDate, 1);
 
     const navigationRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
-        .setCustomId(`buffcal_nav:${format(prevDay, "yyyy-MM-dd")}`)
+        .setCustomId(
+          `buffcal_nav:${formatInTimeZone(prevDay, TIMEZONE, "yyyy-MM-dd")}`,
+        )
         .setLabel("⬅️ Previous Day")
         .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId(
-          `buff_book_slot_init:${format(zonedTargetDate, "yyyy-MM-dd")}`,
+          `buff_book_slot_init:${formatInTimeZone(
+            targetDate,
+            TIMEZONE,
+            "yyyy-MM-dd",
+          )}`,
         )
         .setLabel("✍️ Book a Slot")
         .setStyle(ButtonStyle.Primary),
       new ButtonBuilder()
-        .setCustomId(`buffcal_nav:${format(nextDay, "yyyy-MM-dd")}`)
+        .setCustomId(
+          `buffcal_nav:${formatInTimeZone(nextDay, TIMEZONE, "yyyy-MM-dd")}`,
+        )
         .setLabel("Next Day ➡️")
         .setStyle(ButtonStyle.Secondary),
     );
@@ -144,5 +150,7 @@ export async function execute(
       embeds: [researchEmbed, trainingEmbed, buildingEmbed],
       components: [navigationRow],
     });
-  } catch (error) {}
+  } catch (error) {
+    console.error("Error in buffcal_nav button:", error);
+  }
 }

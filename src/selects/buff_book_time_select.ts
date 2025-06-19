@@ -9,11 +9,11 @@ import {
 } from "discord.js";
 import { eq, and, gte, lte } from "drizzle-orm";
 import { DB, CustomClient } from "../types";
-import { buff_bookings, NewBuffBooking, users, Event } from "../db/schema";
+import { buff_bookings, NewBuffBooking, users } from "../db/schema";
 import { format, startOfDay, endOfDay, isToday } from "date-fns";
 import { formatInTimeZone, toZonedTime } from "date-fns-tz";
 
-const TIMEZONE = "Europe/London";
+const TIMEZONE = "UTC";
 type BuffType = NewBuffBooking["buff_type"];
 
 async function getUpdatedSchedulePayload(guild: any, db: DB, targetDate: Date) {
@@ -50,8 +50,8 @@ async function getUpdatedSchedulePayload(guild: any, db: DB, targetDate: Date) {
     const typeBookings = bookingsForDay.filter((b) => b.buff_type === buffType);
     const bookingsMap = new Map();
     typeBookings.forEach((booking) => {
-      const londonTime = toZonedTime(booking.slot_time, TIMEZONE);
-      const hour = londonTime.getHours();
+      const utcTime = toZonedTime(booking.slot_time, TIMEZONE);
+      const hour = utcTime.getUTCHours();
       bookingsMap.set(hour, booking);
     });
 
@@ -76,8 +76,8 @@ async function getUpdatedSchedulePayload(guild: any, db: DB, targetDate: Date) {
       .setFooter({
         text: `Schedule for ${format(
           zonedTargetDate,
-          "EEEE, MMMM d",
-        )} | All times are UK.`,
+          "EEEE, MMMM d, yyyy",
+        )} | All times are UTC.`,
       });
   };
 
@@ -185,7 +185,7 @@ export async function execute(
       }
     }
 
-    const ukTimeDisplay = formatInTimeZone(
+    const utcTimeDisplay = formatInTimeZone(
       slotTime,
       TIMEZONE,
       "HH:mm 'on' EEEE, dd MMMM",
@@ -197,7 +197,7 @@ export async function execute(
       .setColor(0x57f287)
       .setTitle("✅ Buff Slot Booked!")
       .setDescription(
-        `Your **${buffTypeDisplay} Buff** is confirmed for **${ukTimeDisplay} (UK Time)**.`,
+        `Your **${buffTypeDisplay} Buff** is confirmed for **${utcTimeDisplay} (UTC)**.`,
       )
       .setFooter({ text: footerText });
 

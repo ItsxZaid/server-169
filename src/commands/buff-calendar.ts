@@ -18,10 +18,10 @@ import {
   parse,
   isValid,
 } from "date-fns";
-import { toZonedTime } from "date-fns-tz";
+import { toZonedTime, formatInTimeZone } from "date-fns-tz";
 
-const TIMEZONE = "Europe/London";
 type BuffType = NewBuffBooking["buff_type"];
+const TIMEZONE = "UTC";
 
 export const data = new SlashCommandBuilder()
   .setName("buff-calendar")
@@ -30,7 +30,7 @@ export const data = new SlashCommandBuilder()
     option
       .setName("date")
       .setDescription(
-        "The date to view in yyyy-MM-DD format. Defaults to today.",
+        "The date to view in YYYY-MM-DD format (UTC). Defaults to today.",
       )
       .setRequired(false),
   );
@@ -95,8 +95,8 @@ export async function execute(
       );
       const bookingsMap = new Map();
       typeBookings.forEach((booking) => {
-        const londonTime = toZonedTime(booking.slot_time, TIMEZONE);
-        const hour = londonTime.getHours();
+        const utcTime = toZonedTime(booking.slot_time, TIMEZONE);
+        const hour = utcTime.getUTCHours();
         bookingsMap.set(hour, booking);
       });
 
@@ -119,7 +119,7 @@ export async function execute(
         .setTitle(title)
         .setDescription(description)
         .setFooter({
-          text: `Schedule for ${format(zonedTargetDate, "EEEE, MMMM d, yyyy")}`,
+          text: `Schedule for ${format(zonedTargetDate, "EEEE, MMMM d, yyyy")} | All times are UTC.`,
         });
     };
 
@@ -144,17 +144,21 @@ export async function execute(
 
     const navigationRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
-        .setCustomId(`buffcal_nav:${format(prevDay, "yyyy-MM-dd")}`)
+        .setCustomId(
+          `buffcal_nav:${formatInTimeZone(prevDay, TIMEZONE, "yyyy-MM-dd")}`,
+        )
         .setLabel("⬅️ Previous Day")
         .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId(
-          `buff_book_slot_init:${format(zonedTargetDate, "yyyy-MM-dd")}`,
+          `buff_book_slot_init:${formatInTimeZone(zonedTargetDate, TIMEZONE, "yyyy-MM-dd")}`,
         )
         .setLabel("✍️ Book a Slot")
         .setStyle(ButtonStyle.Primary),
       new ButtonBuilder()
-        .setCustomId(`buffcal_nav:${format(nextDay, "yyyy-MM-dd")}`)
+        .setCustomId(
+          `buffcal_nav:${formatInTimeZone(nextDay, TIMEZONE, "yyyy-MM-dd")}`,
+        )
         .setLabel("Next Day ➡️")
         .setStyle(ButtonStyle.Secondary),
     );

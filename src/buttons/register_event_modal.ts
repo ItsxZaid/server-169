@@ -68,10 +68,11 @@ export async function execute(
 
     const timeInput = new TextInputBuilder()
       .setCustomId("eventTime")
-      .setLabel("Time of the Event (in UK Time)")
+      .setLabel("Time of the Event (in UTC)")
       .setStyle(TextInputStyle.Short)
-      .setPlaceholder("HH:MM (e.g., 14:30 for 2:30 PM UK Time)")
+      .setPlaceholder("HH:MM (e.g., 14:30 for 2:30 PM UTC)")
       .setRequired(true);
+    // ---------------------------------
 
     const imageUrlInput = new TextInputBuilder()
       .setCustomId("imageUrl")

@@ -11,7 +11,7 @@ import {
 import { eq } from "drizzle-orm";
 import { DB } from "../types";
 import { events, NewEvent, users } from "../db/schema";
-import { toZonedTime } from "date-fns-tz";
+import { isValid } from "date-fns";
 
 export async function execute(interaction: ModalSubmitInteraction, db: DB) {
   console.log(
@@ -54,11 +54,14 @@ export async function execute(interaction: ModalSubmitInteraction, db: DB) {
       `[EventModalSubmit] Retrieved form data: Name=${eventName}, Date=${eventDate}, Time=${eventTime}`,
     );
 
-    const [day, month, year] = eventDate.split("-");
-    const isoDateString = `${year}-${month}-${day}T${eventTime}:00`;
-    const ukZonedDate = toZonedTime(isoDateString, "Europe/London");
+    const [day, month, year] = eventDate.split("-").map(Number);
+    const [hour, minute] = eventTime.split(":").map(Number);
 
-    if (isNaN(ukZonedDate.getTime())) {
+    const eventDateTime = new Date(
+      Date.UTC(year, month - 1, day, hour, minute),
+    );
+
+    if (!isValid(eventDateTime)) {
       await interaction.editReply(
         "The date or time you entered appears to be invalid. Please use the format `DD-MM-YYYY` and `HH:MM`.",
       );
@@ -91,7 +94,7 @@ export async function execute(interaction: ModalSubmitInteraction, db: DB) {
       type: eventType as "server-wide" | "alliance-specific",
       alliance_target:
         eventType === "alliance-specific" ? creator.alliance : null,
-      event_time: ukZonedDate.toISOString(),
+      event_time: eventDateTime.toISOString(), // Save as ISO string (UTC)
       created_by_discord_id: interaction.user.id,
       imageUrl: imageUrl || null,
     };
@@ -127,14 +130,14 @@ export async function execute(interaction: ModalSubmitInteraction, db: DB) {
       .setDescription(infoText)
       .addFields(
         { name: "🗓️ Date", value: eventDate, inline: true },
-        { name: "⏰ Time", value: `${eventTime} UK Time`, inline: true },
+        { name: "⏰ Time", value: `${eventTime} UTC`, inline: true },
         {
           name: "Scope",
           value: eventType === "server-wide" ? "Server-Wide" : `Alliance`,
           inline: true,
         },
       )
-      .setTimestamp(ukZonedDate);
+      .setTimestamp(eventDateTime);
 
     if (rulesText) {
       announcementEmbed.addFields({

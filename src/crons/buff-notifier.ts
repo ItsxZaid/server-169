@@ -1,130 +1,166 @@
-import { EmbedBuilder } from "discord.js";
-import { and, gte, lte, eq } from "drizzle-orm";
+import {
+  EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  TextChannel,
+  ChannelType,
+  MessageFlags,
+} from "discord.js";
 import { CronJob } from "../types";
-import { buff_bookings } from "../db/schema";
-import { formatInTimeZone } from "date-fns-tz";
+import { format, addDays, subDays, startOfDay, endOfDay } from "date-fns";
+import { toZonedTime, formatInTimeZone } from "date-fns-tz";
+import { and, gte, lte } from "drizzle-orm";
+import { buff_bookings, NewBuffBooking } from "../db/schema";
 
-const TIMEZONE = "Europe/London";
+const TIMEZONE = "UTC";
+type BuffType = NewBuffBooking["buff_type"];
 
 const job: CronJob = {
   meta: {
-    id: "buff-notifier",
-    schedule: "* * * * *",
+    id: "persistent-buttons",
+    schedule: "*/5 * * * *",
   },
   execute: async (client, db) => {
-    const now = new Date();
-    const notificationWindowStart = new Date(now.getTime() + 4 * 60 * 1000);
-    const notificationWindowEnd = new Date(now.getTime() + 5 * 60 * 1000);
+    const guildId = process.env.SERVER_ID;
+    if (!guildId) return;
 
-    try {
-      const upcomingBookings = await db
-        .select()
-        .from(buff_bookings)
-        .where(
-          and(
-            gte(buff_bookings.slot_time, notificationWindowStart.toISOString()),
-            lte(buff_bookings.slot_time, notificationWindowEnd.toISOString()),
-            eq(buff_bookings.notification_sent, false),
-          ),
+    const guild = await client.guilds.fetch(guildId).catch(() => null);
+    if (!guild) return;
+
+    const buffChannelName = "buff-management";
+    const buffChannel = guild.channels.cache.find(
+      (c) => c.name === buffChannelName && c.type === ChannelType.GuildText,
+    ) as TextChannel | undefined;
+
+    if (buffChannel) {
+      try {
+        const messages = await buffChannel.messages.fetch({ limit: 100 });
+        const botMessages = messages.filter(
+          (m) =>
+            m.author.id === client.user?.id &&
+            m.embeds[0]?.title?.includes("Buff Schedule"),
         );
 
-      if (upcomingBookings.length === 0) {
-        return;
-      }
-
-      const buffGiverRole = await client.guilds
-        .fetch(process.env.SERVER_ID!)
-        .then((guild) =>
-          guild.roles.cache.find((role) => role.name === "BUFF_GIVER"),
-        );
-
-      if (!buffGiverRole) {
-        return;
-      }
-
-      for (const booking of upcomingBookings) {
-        let giverId = booking.giver_discord_id;
-
-        if (!giverId) {
-          const membersWithRole = await client.guilds
-            .fetch(process.env.SERVER_ID!)
-            .then((guild) => guild.members.fetch({ withPresences: true }))
-            .then((members) =>
-              members.filter(
-                (m) =>
-                  m.roles.cache.has(buffGiverRole.id) &&
-                  m.presence?.status === "online",
-              ),
-            );
-
-          if (membersWithRole.size > 0) {
-            giverId = membersWithRole.random()!.id;
-          } else {
-            giverId = process.env.DEFAULT_BUFF_GIVER_ID!;
-          }
+        for (const msg of botMessages.values()) {
+          await msg.delete().catch(() => {});
         }
 
-        if (!giverId) {
-          continue;
-        }
+        const targetDate = new Date();
 
-        const giver = await client.users.fetch(giverId).catch(() => null);
-        const requester = await client.users
-          .fetch(booking.booked_by_discord_id)
-          .catch(() => null);
+        const zonedTargetDate = toZonedTime(targetDate, TIMEZONE);
+        const dayStart = startOfDay(zonedTargetDate);
+        const dayEnd = endOfDay(zonedTargetDate);
 
-        if (giver && requester) {
-          const slotTime = new Date(booking.slot_time);
-          const formattedTime = formatInTimeZone(
-            slotTime,
-            TIMEZONE,
-            "HH:mm 'UK Time'",
+        const bookingsForDay = await db
+          .select()
+          .from(buff_bookings)
+          .where(
+            and(
+              gte(buff_bookings.slot_time, dayStart.toISOString()),
+              lte(buff_bookings.slot_time, dayEnd.toISOString()),
+            ),
           );
-          const buffTypeDisplay =
-            booking.buff_type.charAt(0).toUpperCase() +
-            booking.buff_type.slice(1);
 
-          const giverEmbed = new EmbedBuilder()
-            .setColor(0x3498db)
-            .setTitle("✨ Buff Duty Reminder")
-            .setDescription(`You have a buff to give in **5 minutes!**`)
-            .addFields(
-              {
-                name: "👤 User to Buff",
-                value: `${requester} (${requester.tag})`,
-                inline: true,
-              },
-              {
-                name: "🛠️ Buff Type",
-                value: buffTypeDisplay,
-                inline: true,
-              },
-              {
-                name: "⏰ Time",
-                value: formattedTime,
-                inline: true,
-              },
-            );
-
-          await giver.send({ embeds: [giverEmbed] });
-
-          const requesterEmbed = new EmbedBuilder()
-            .setColor(0x57f287)
-            .setTitle(`🔔 Reminder: Your ${buffTypeDisplay} Buff is Soon!`)
-            .setDescription(
-              `Your scheduled **${buffTypeDisplay}** buff is in **5 minutes** at **${formattedTime}**.`,
-            )
-            .setFooter({ text: "Please be online and ready!" });
-
-          await requester.send({ embeds: [requesterEmbed] });
-
-          await db
-            .update(buff_bookings)
-            .set({ notification_sent: true, giver_discord_id: giverId })
-            .where(eq(buff_bookings.id, booking.id));
+        const userIds = [
+          ...new Set(bookingsForDay.map((b) => b.booked_by_discord_id)),
+        ];
+        const membersMap = new Map<string, string>();
+        if (userIds.length > 0) {
+          const members = await guild.members.fetch({ user: userIds });
+          members.forEach((member) =>
+            membersMap.set(member.id, member.displayName),
+          );
         }
-      }
-    } catch (error) {}
+
+        const createScheduleEmbed = (
+          buffType: BuffType,
+          title: string,
+          color: number,
+        ) => {
+          const typeBookings = bookingsForDay.filter(
+            (b) => b.buff_type === buffType,
+          );
+          const bookingsMap = new Map();
+          typeBookings.forEach((booking) => {
+            const utcTime = toZonedTime(booking.slot_time, TIMEZONE);
+            const hour = utcTime.getUTCHours();
+            bookingsMap.set(hour, booking);
+          });
+
+          const scheduleTable: string[] = [];
+          for (let hour = 0; hour < 24; hour++) {
+            const timeString = `${String(hour).padStart(2, "0")}:00`;
+            const booking = bookingsMap.get(hour);
+            const displayName = booking
+              ? membersMap.get(booking.booked_by_discord_id)
+              : null;
+            const displayValue = booking
+              ? `✅ ${displayName || `<@${booking.booked_by_discord_id}>`}`
+              : `⬜ Available`;
+            scheduleTable.push(`${timeString} : ${displayValue}`);
+          }
+          const description = `\`\`\`\n${scheduleTable.join("\n")}\n\`\`\``;
+
+          return new EmbedBuilder()
+            .setColor(color)
+            .setTitle(title)
+            .setDescription(description)
+            .setFooter({
+              text: `Schedule for ${format(
+                zonedTargetDate,
+                "EEEE, MMMM d",
+              )} | All times are UTC.`,
+            });
+        };
+
+        const researchEmbed = createScheduleEmbed(
+          "research",
+          "🔬 Research Buff Schedule",
+          0x3498db,
+        );
+        const trainingEmbed = createScheduleEmbed(
+          "training",
+          "⚔️ Training Buff Schedule",
+          0xe74c3c,
+        );
+        const buildingEmbed = createScheduleEmbed(
+          "building",
+          "🏗️ Building Buff Schedule",
+          0xf1c40f,
+        );
+
+        const prevDay = subDays(zonedTargetDate, 1);
+        const nextDay = addDays(zonedTargetDate, 1);
+
+        const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+          new ButtonBuilder()
+            .setCustomId(
+              `buffcal_nav:${formatInTimeZone(prevDay, TIMEZONE, "yyyy-MM-dd")}`,
+            )
+            .setLabel("⬅️ Previous Day")
+            .setStyle(ButtonStyle.Secondary),
+          new ButtonBuilder()
+            .setCustomId(
+              `buff_book_slot_init:${formatInTimeZone(zonedTargetDate, TIMEZONE, "yyyy-MM-dd")}`,
+            )
+            .setLabel("✍️ Book a Buff Slot")
+            .setStyle(ButtonStyle.Primary),
+          new ButtonBuilder()
+            .setCustomId(
+              `buffcal_nav:${formatInTimeZone(nextDay, TIMEZONE, "yyyy-MM-dd")}`,
+            )
+            .setLabel("Next Day ➡️")
+            .setStyle(ButtonStyle.Secondary),
+        );
+
+        await buffChannel.send({
+          embeds: [researchEmbed, trainingEmbed, buildingEmbed],
+          components: [row],
+          flags: [MessageFlags.SuppressNotifications],
+        });
+      } catch (error) {}
+    }
   },
 };
 
