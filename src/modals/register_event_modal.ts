@@ -94,11 +94,11 @@ export async function execute(interaction: ModalSubmitInteraction, db: DB) {
       type: eventType as "server-wide" | "alliance-specific",
       alliance_target:
         eventType === "alliance-specific" ? creator.alliance : null,
-      event_time: eventDateTime.toISOString(), // Save as ISO string (UTC)
+      event_time: eventDateTime.toISOString(),
       created_by_discord_id: interaction.user.id,
       imageUrl: imageUrl || null,
     };
-
+    console.log(newEventData);
     const createdEvent = await db
       .insert(events)
       .values(newEventData)

@@ -14,9 +14,14 @@ const job: CronJob = {
     schedule: "*/2 * * * *",
   },
   execute: async (client, db) => {
-    console.log("[CRON] Checking for upcoming events to remind...");
-
     const now = new Date();
+    const utcHour = now.getUTCHours().toString().padStart(2, "0");
+    const utcMinute = now.getUTCMinutes().toString().padStart(2, "0");
+
+    console.log(
+      `[CRON] Checking for upcoming events to remind... (UTC: ${utcHour}:${utcMinute})`,
+    );
+
     const reminderWindowStart = new Date(now.getTime() + 14 * 60 * 1000);
     const reminderWindowEnd = new Date(now.getTime() + 16 * 60 * 1000);
 
@@ -65,8 +70,7 @@ const job: CronJob = {
           const allianceCategory = guild.channels.cache.find(
             (c) =>
               c.type === ChannelType.GuildCategory &&
-              c.name.toLowerCase() ===
-                `${event.alliance_target!.toLowerCase()} alliance`,
+              c.id === event.alliance_target,
           ) as CategoryChannel;
           if (allianceCategory) {
             targetChannel = allianceCategory.children.cache.find(
