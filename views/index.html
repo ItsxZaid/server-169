@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Discord Bot Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        font-family: "Inter", sans-serif;
+      }
+      .btn-action {
+        background-color: #36393f;
+        color: #dcddde;
+        border: 1px solid #4f545c;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+        transition: all 0.2s ease-in-out;
+      }
+      .btn-action:hover {
+        background-color: #5865f2;
+        color: #ffffff;
+        box-shadow: 0 6px 15px rgba(88, 101, 242, 0.4);
+        transform: translateY(-1px);
+      }
+      .btn-action:active {
+        transform: translateY(0);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+      }
+      .status-dot {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 12px;
+        vertical-align: middle;
+        box-shadow: 0 0 12px rgba(0, 0, 0, 0.4);
+      }
+      .status-online {
+        background-color: #43b581;
+      }
+      .status-offline {
+        background-color: #f04747;
+      }
+      .status-restarting {
+        background-color: #faa61a;
+      }
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #1a202c;
+        border-radius: 10px;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #4a5568;
+        border-radius: 10px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #6b7280;
+      }
+      .card-container {
+        perspective: 1000px;
+        position: relative;
+        width: 100%;
+        transition: height 0.8s ease-in-out;
+      }
+      .card-inner {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        text-align: center;
+        transition: transform 0.8s;
+        transform-style: preserve-3d;
+      }
+      .card-container.flipped .card-inner {
+        transform: rotateY(180deg);
+      }
+      .card-front,
+      .card-back {
+        position: absolute;
+        width: 100%;
+        height: auto;
+        -webkit-backface-visibility: hidden;
+        backface-visibility: hidden;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: 2rem 3rem;
+        border-radius: 1.5rem;
+        background: #2f3136;
+        background-opacity: 0.8;
+        backdrop-filter: blur(24px);
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+      }
+      .card-back {
+        transform: rotateY(180deg);
+      }
+      .input-field {
+        background-color: #202225;
+        border: 1px solid #4f545c;
+        color: #dcddde;
+        padding: 0.75rem 1rem;
+        border-radius: 0.5rem;
+        font-size: 1rem;
+        transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+      }
+      .input-field:focus {
+        outline: none;
+        border-color: #5865f2;
+        box-shadow: 0 0 0 2px rgba(88, 101, 242, 0.4);
+      }
+      .input-field::placeholder {
+        color: #6a6e73;
+      }
+      .channel-item {
+        background-color: #202225;
+        border: 1px solid #4f545c;
+        color: #dcddde;
+        padding: 0.75rem 1rem;
+        border-radius: 0.5rem;
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.75rem;
+        font-size: 1rem;
+      }
+      .channel-item span {
+        flex-grow: 1;
+        margin-right: 0.75rem;
+        word-break: break-all;
+      }
+      .channel-item:last-child {
+        margin-bottom: 0;
+      }
+      .feedback-message {
+        margin-top: 1rem;
+        padding: 0.75rem 1rem;
+        border-radius: 0.5rem;
+        font-size: 0.9rem;
+        text-align: center;
+        opacity: 0;
+        transition: opacity 0.3s ease-in-out;
+      }
+      .feedback-message.show {
+        opacity: 1;
+      }
+      .feedback-message.success {
+        background-color: rgba(67, 181, 129, 0.2);
+        color: #43b581;
+      }
+      .feedback-message.error {
+        background-color: rgba(240, 71, 71, 0.2);
+        color: #f04747;
+      }
+      .feedback-message.info {
+        background-color: rgba(88, 101, 242, 0.2);
+        color: #5865f2;
+      }
+    </style>
+  </head>
+  <body
+    class="bg-[#202225] min-h-screen flex items-center justify-center p-4 text-[#DCDDDE]"
+  >
+    <div
+      id="main-card-container"
+      class="card-container w-full lg:max-w-4xl mx-auto"
+    >
+      <div id="card-inner" class="card-inner">
+        <div id="card-front" class="card-front">
+          <div id="main-feedback" class="feedback-message hidden"></div>
+          <div class="flex justify-end items-center mb-10">
+            <button
+              id="settings-button"
+              class="p-3 rounded-full bg-gray-700 bg-opacity-40 hover:bg-gray-600 hover:bg-opacity-60 transition duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-[#5865F2] focus:ring-opacity-75"
+            >
+              <svg
+                class="w-6 h-6 text-[#99AAB5] hover:text-white"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+                ></path>
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                ></path>
+              </svg>
+            </button>
+          </div>
+
+          <div class="bg-[#292B2F] rounded-xl p-7 mb-8 shadow-inner">
+            <h2 class="text-2xl font-semibold text-[#F6F6F7] mb-5">
+              Bot Status
+            </h2>
+            <div class="flex items-center text-4xl font-bold">
+              <span id="bot-status-dot" class="status-dot status-online"></span>
+              <span id="bot-status-text" class="text-[#43B581]">Online</span>
+            </div>
+            <p class="text-base text-[#99AAB5] mt-4">
+              Last updated: <span id="last-updated">Just now</span>
+            </p>
+          </div>
+
+          <div class="bg-[#292B2F] rounded-xl p-7 mb-10 shadow-inner">
+            <h2 class="text-2xl font-semibold text-[#F6F6F7] mb-5">
+              Resource Usage
+            </h2>
+            <div class="space-y-6">
+              <div>
+                <div class="flex justify-between items-center mb-3">
+                  <span class="text-[#DCDDDE] text-xl">RAM Usage</span>
+                  <span
+                    id="ram-usage-text"
+                    class="font-medium text-[#5865F2] text-xl"
+                    >0.0 GB / 0.0 GB</span
+                  >
+                </div>
+                <div class="w-full bg-[#4F545C] rounded-full h-4">
+                  <div
+                    id="ram-usage-bar"
+                    class="bg-[#5865F2] h-4 rounded-full"
+                    style="width: 0%"
+                  ></div>
+                </div>
+              </div>
+              <div>
+                <div class="flex justify-between items-center mb-3">
+                  <span class="text-[#DCDDDE] text-xl">CPU Usage</span>
+                  <span
+                    id="cpu-usage-text"
+                    class="font-medium text-[#7289DA] text-xl"
+                    >0%</span
+                  >
+                </div>
+                <div class="w-full bg-[#4F545C] rounded-full h-4">
+                  <div
+                    id="cpu-usage-bar"
+                    class="bg-[#7289DA] h-4 rounded-full"
+                    style="width: 0%"
+                  ></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <button
+              id="start-button"
+              class="btn-action text-white font-bold py-5 px-8 rounded-xl text-2xl focus:outline-none focus:ring-2 focus:ring-[#5865F2] focus:ring-opacity-75"
+            >
+              Start
+            </button>
+            <button
+              id="stop-button"
+              class="btn-action text-white font-bold py-5 px-8 rounded-xl text-2xl focus:outline-none focus:ring-2 focus:ring-[#5865F2] focus:ring-opacity-75"
+            >
+              Stop
+            </button>
+            <button
+              id="restart-button"
+              class="btn-action text-white font-bold py-5 px-8 rounded-xl text-2xl focus:outline-none focus:ring-2 focus:ring-[#5865F2] focus:ring-opacity-75"
+            >
+              Restart
+            </button>
+          </div>
+        </div>
+
+        <div id="card-back" class="card-back">
+          <div class="flex justify-between items-center mb-10">
+            <h2 class="text-3xl font-bold text-[#F6F6F7]">Settings</h2>
+            <button
+              id="close-settings-button"
+              class="p-3 rounded-full bg-gray-700 bg-opacity-40 hover:bg-gray-600 hover:bg-opacity-60 transition duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-[#5865F2] focus:ring-opacity-75"
+            >
+              <svg
+                class="w-6 h-6 text-[#99AAB5] hover:text-white"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M6 18L18 6M6 6l12 12"
+                ></path>
+              </svg>
+            </button>
+          </div>
+
+          <div class="space-y-8 flex-grow overflow-y-auto pr-2">
+            <div>
+              <div id="settings-feedback" class="feedback-message hidden"></div>
+
+              <label
+                for="bot-token"
+                class="block text-xl font-semibold text-[#DCDDDE] mb-2"
+                >Bot Token</label
+              >
+              <input
+                type="password"
+                id="bot-token"
+                class="input-field w-full"
+                placeholder="Enter your bot token"
+              />
+            </div>
+
+            <div>
+              <label
+                for="client-id"
+                class="block text-xl font-semibold text-[#DCDDDE] mb-2"
+                >Client ID</label
+              >
+              <input
+                type="text"
+                id="client-id"
+                class="input-field w-full"
+                placeholder="Enter your bot's client ID"
+              />
+            </div>
+
+            <div>
+              <label class="block text-xl font-semibold text-[#DCDDDE] mb-2"
+                >Servers to Monitor</label
+              >
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+                <input
+                  type="text"
+                  id="new-server-id"
+                  class="input-field col-span-1"
+                  placeholder="Server ID"
+                />
+                <input
+                  type="text"
+                  id="new-server-name"
+                  class="input-field col-span-1"
+                  placeholder="Server Name (Optional)"
+                />
+              </div>
+              <button
+                id="add-server-button"
+                class="btn-action py-3 px-6 rounded-lg text-lg w-full mb-4"
+              >
+                Add Server
+              </button>
+              <div
+                id="servers-list"
+                class="space-y-3 max-h-48 overflow-y-auto"
+              ></div>
+            </div>
+          </div>
+
+          <button
+            id="save-settings-button"
+            class="btn-action text-white font-bold py-4 px-8 rounded-xl text-xl mt-8 w-full focus:outline-none focus:ring-2 focus:ring-[#5865F2] focus:ring-opacity-75"
+          >
+            Save Settings
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const cardContainer = document.getElementById("main-card-container");
+      const settingsButton = document.getElementById("settings-button");
+      const closeSettingsButton = document.getElementById(
+        "close-settings-button"
+      );
+      const saveSettingsButton = document.getElementById(
+        "save-settings-button"
+      );
+      const addServerButton = document.getElementById("add-server-button");
+      const newServerIdInput = document.getElementById("new-server-id");
+      const newServerNameInput = document.getElementById("new-server-name");
+      const serversList = document.getElementById("servers-list");
+      const botTokenInput = document.getElementById("bot-token");
+      const clientIdInput = document.getElementById("client-id");
+      const saveFeedback = document.getElementById("save-feedback");
+
+      const startButton = document.getElementById("start-button");
+      const stopButton = document.getElementById("stop-button");
+      const restartButton = document.getElementById("restart-button");
+
+      let servers = [];
+
+      function setCardContainerHeight() {
+        const activeCard = cardContainer.classList.contains("flipped")
+          ? document.getElementById("card-back")
+          : document.getElementById("card-front");
+        setTimeout(() => {
+          const contentHeight = activeCard.scrollHeight;
+          cardContainer.style.height = `${contentHeight + 60}px`;
+        }, 50);
+      }
+
+      settingsButton.addEventListener("click", () => {
+        cardContainer.classList.add("flipped");
+        setCardContainerHeight();
+      });
+
+      closeSettingsButton.addEventListener("click", () => {
+        cardContainer.classList.remove("flipped");
+        setCardContainerHeight();
+      });
+
+      function renderServers() {
+        serversList.innerHTML = "";
+        servers.forEach((server, index) => {
+          const serverItem = document.createElement("div");
+          serverItem.className = "channel-item";
+          serverItem.innerHTML = `
+                    <div>
+                        <span class="font-bold">ID:</span> <span>${
+                          server.id
+                        }</span><br>
+                        <span class="font-bold">Name:</span> <span>${
+                          server.name || "Unnamed Server"
+                        }</span>
+                    </div>
+                    <button class="text-[#F04747] hover:text-white transition-colors duration-200" data-index="${index}" onclick="deleteServer(this)">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                        </svg>
+                    </button>
+                `;
+          serversList.appendChild(serverItem);
+        });
+        if (cardContainer.classList.contains("flipped")) {
+          setCardContainerHeight();
+        }
+      }
+
+      addServerButton.addEventListener("click", () => {
+        const newServerId = newServerIdInput.value.trim();
+        const newServerName = newServerNameInput.value.trim();
+
+        if (!newServerId) {
+          showFeedback("Server ID is required!", "error");
+          return;
+        }
+
+        const isServerIdValid = /^\d{17,19}$/.test(newServerId);
+
+        if (!isServerIdValid) {
+          showFeedback(
+            "Please enter a valid Discord Server ID (17-19 digits).",
+            "error"
+          );
+          return;
+        }
+
+        if (servers.some((s) => s.id === newServerId)) {
+          showFeedback("This Server ID already exists!", "error");
+          return;
+        }
+
+        servers.push({ id: newServerId, name: newServerName });
+        newServerIdInput.value = "";
+        newServerNameInput.value = "";
+        renderServers();
+        showFeedback("Server added successfully!", "success");
+      });
+
+      window.deleteServer = function (buttonElement) {
+        const index = parseInt(buttonElement.dataset.index);
+        servers.splice(index, 1);
+        renderServers();
+        showFeedback("Server deleted.", "info");
+      };
+
+      function showFeedback(message, type) {
+        const mainFeedback = document.getElementById("main-feedback");
+        const settingsFeedback = document.getElementById("settings-feedback");
+
+        [mainFeedback, settingsFeedback].forEach((container) => {
+          container.textContent = message;
+          container.classList.remove("hidden", "success", "error", "info");
+          container.classList.add(type);
+          container.classList.add("show");
+        });
+
+        setTimeout(() => {
+          [mainFeedback, settingsFeedback].forEach((container) => {
+            container.classList.remove("show");
+            setTimeout(() => container.classList.add("hidden"), 300);
+          });
+        }, 5000);
+      }
+
+      async function loadSettings() {
+        try {
+          const response = await fetch("/api/ui/settings");
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          const data = await response.json();
+          botTokenInput.value = data.botToken || "";
+          clientIdInput.value = data.clientId || "";
+          servers = data.servers || [];
+          renderServers();
+          showFeedback("Settings loaded from backend.", "info");
+        } catch (error) {
+          console.error("Failed to load settings:", error);
+          showFeedback(
+            "Failed to load settings from backend. Please ensure your backend is running.",
+            "error"
+          );
+        }
+      }
+
+      saveSettingsButton.addEventListener("click", async () => {
+        const botToken = botTokenInput.value.trim();
+        const clientId = clientIdInput.value.trim();
+
+        const settingsData = {
+          botToken: botToken,
+          clientId: clientId,
+          servers: servers.map((s) => ({ id: s.id, name: s.name })),
+        };
+
+        showFeedback("Saving settings...", "info");
+
+        try {
+          const response = await fetch("/api/ui/settings", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(settingsData),
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          const apiResponse = await response.json();
+
+          if (apiResponse.status === "success") {
+            showFeedback("Settings saved successfully!", "success");
+          } else {
+            showFeedback(
+              `Error: ${apiResponse.message || "Failed to save settings."}`,
+              "error"
+            );
+          }
+        } catch (error) {
+          console.error("API call failed:", error);
+          showFeedback(
+            "Network error or API issue. Please try again.",
+            "error"
+          );
+        }
+      });
+
+      async function updateBotStatus() {
+        const statusDot = document.getElementById("bot-status-dot");
+        const statusText = document.getElementById("bot-status-text");
+        const lastUpdated = document.getElementById("last-updated");
+        const ramUsageText = document.getElementById("ram-usage-text");
+        const ramUsageBar = document.getElementById("ram-usage-bar");
+        const cpuUsageText = document.getElementById("cpu-usage-text");
+        const cpuUsageBar = document.getElementById("cpu-usage-bar");
+
+        if (!cardContainer.classList.contains("flipped")) {
+          try {
+            const response = await fetch("/api/ui/status");
+            if (!response.ok) {
+              throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const apiData = await response.json();
+
+            const cpuUsage = apiData.cpuUsage;
+            const currentRam = apiData.ramUsage.current;
+            const totalRam = apiData.ramUsage.total;
+            const ramPercentage =
+              totalRam > 0 ? ((currentRam / totalRam) * 100).toFixed(0) : 0;
+
+            cpuUsageText.textContent = `${cpuUsage}%`;
+            cpuUsageBar.style.width = `${cpuUsage}%`;
+            ramUsageText.textContent = `${currentRam} GB / ${totalRam} GB`;
+            ramUsageBar.style.width = `${ramPercentage}%`;
+
+            const now = new Date();
+            lastUpdated.textContent = now.toLocaleTimeString();
+
+            if (apiData.botStatus === "connected") {
+              statusDot.classList.remove("status-offline", "status-restarting");
+              statusDot.classList.add("status-online");
+              statusText.textContent = "Online";
+              statusText.classList.remove("text-[#F04747]", "text-[#FAA61A]");
+              statusText.classList.add("text-[#43B581]");
+            } else if (apiData.botStatus === "disconnected") {
+              statusDot.classList.remove("status-online", "status-restarting");
+              statusDot.classList.add("status-offline");
+              statusText.textContent = "Offline";
+              statusText.classList.remove("text-[#43B581]", "text-[#FAA61A]");
+              statusText.classList.add("text-[#F04747]");
+            } else if (apiData.botStatus === "reconnecting") {
+              statusDot.classList.remove("status-online", "status-offline");
+              statusDot.classList.add("status-restarting");
+              statusText.textContent = "Restarting";
+              statusText.classList.remove("text-[#43B581]", "text-[#F04747]");
+              statusText.classList.add("text-[#FAA61A]");
+            } else {
+              statusDot.classList.remove("status-online", "status-restarting");
+              statusDot.classList.add("status-offline");
+              statusText.textContent = "Unknown";
+              statusText.classList.remove("text-[#43B581]", "text-[#FAA61A]");
+              statusText.classList.add("text-[#F04747]");
+            }
+          } catch (error) {
+            console.error("Failed to fetch bot status:", error);
+            statusDot.classList.remove("status-online", "status-restarting");
+            statusDot.classList.add("status-offline");
+            statusText.textContent = "Error";
+            statusText.classList.remove("text-[#43B581]", "text-[#FAA61A]");
+            statusText.classList.add("text-[#F04747]");
+            lastUpdated.textContent = "Failed to load";
+          }
+        }
+      }
+
+      async function sendControlCommand(action) {
+        console.log("Sending control command:", action);
+        const botToken = botTokenInput.value.trim();
+        const clientId = clientIdInput.value.trim();
+
+        if (!botToken || !clientId) {
+          showFeedback(
+            "Bot Token and Client ID are required to control the bot!",
+            "error"
+          );
+          return;
+        }
+
+        const controlData = {
+          action: action,
+          botToken: botToken,
+          clientId: clientId,
+          servers: servers.map((s) => ({ id: s.id, name: s.name })),
+        };
+
+        showFeedback(`Sending ${action} command...`, "info");
+
+        try {
+          const response = await fetch("/api/ui/control", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(controlData),
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          const apiResponse = await response.json();
+
+          if (apiResponse.status === "success") {
+            showFeedback(`Bot ${action} command successful!`, "success");
+          } else {
+            showFeedback(
+              `Error: ${apiResponse.message || `Failed to ${action} bot.`}`,
+              "error"
+            );
+          }
+        } catch (error) {
+          console.error(`Failed to send ${action} command:`, error);
+          showFeedback(
+            `Network error or API issue. Failed to ${action} bot.`,
+            "error"
+          );
+        }
+      }
+
+      startButton.addEventListener("click", () => sendControlCommand("start"));
+      stopButton.addEventListener("click", () => sendControlCommand("stop"));
+      restartButton.addEventListener("click", () =>
+        sendControlCommand("restart")
+      );
+
+      window.onload = function () {
+        loadSettings();
+        updateBotStatus();
+        setInterval(updateBotStatus, 5000);
+        setCardContainerHeight();
+      };
+
+      window.addEventListener("resize", setCardContainerHeight);
+    </script>
+  </body>
+</html>
