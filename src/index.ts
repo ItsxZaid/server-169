@@ -37,7 +37,8 @@ startServer()
                 intents: [
                     GatewayIntentBits.Guilds,
                     GatewayIntentBits.GuildMessages,
-                    GatewayIntentBits.MessageContent
+                    GatewayIntentBits.MessageContent,
+                    GatewayIntentBits.GuildMembers
                 ],
                 servers: settings.servers,
             };

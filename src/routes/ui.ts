@@ -73,7 +73,6 @@ router.post('/settings', async (req, res) => {
 
         const manager = DiscordClientManager.getInstance();
         manager.updateConfig({ token: botToken, servers });
-        manager.restart();
 
         res.status(200).json({ status: "success", message: 'Settings saved and bot restarted successfully' });
 
