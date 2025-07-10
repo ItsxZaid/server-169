@@ -4,6 +4,8 @@ import { Logger } from '../utils/logger.js';
 import { Server } from '../utils/db.js';
 import { ServerSetupManager } from './setupServers.js';
 import { MemberEventManager } from './memberEvents.js';
+import { EventScheduler } from './eventScheduler.js';
+import { EventHandler } from './eventHandler.js';
 
 export interface DiscordClientConfig {
     token: string;
@@ -131,6 +133,10 @@ export class DiscordClientManager extends EventEmitter {
             const ssm = ServerSetupManager.getInstance(readyClient);
             await ssm.initializeAllGuilds();
             new MemberEventManager(readyClient, ssm);
+
+            const eventScheduler = new EventScheduler(readyClient);
+            await eventScheduler.initialize();
+            new EventHandler(readyClient, ssm, eventScheduler);
         });
 
         this.client.on(Events.GuildCreate, async (guild: Guild) => {

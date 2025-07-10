@@ -33,5 +33,5 @@ export const SERVER_CHANNELS = [
     { name: 'r5-management-chat', permissionType: 'r5_only' },
     { name: 'buff-management', permissionType: 'general' },
     { name: 'chit-chat', permissionType: 'general' },
-    { name: 'event-and-reminders', permissionType: 'announcement' },
+    { name: 'events-and-reminders', permissionType: 'announcement' },
 ];

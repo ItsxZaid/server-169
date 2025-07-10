@@ -1,7 +1,7 @@
 import {
     Client, GuildMember, Interaction, ButtonBuilder, ButtonStyle, ActionRowBuilder, ModalBuilder,
     TextInputBuilder, TextInputStyle, StringSelectMenuBuilder, EmbedBuilder, CacheType, TextChannel,
-    ModalSubmitInteraction, ButtonInteraction, StringSelectMenuInteraction, Events
+    ModalSubmitInteraction, ButtonInteraction, StringSelectMenuInteraction, Events, Channel
 } from 'discord.js';
 import { ServerSetupManager } from './setupServers';
 import { RANK_ROLES, SPECIAL_RANK_ROLES, ALLIANCE_TAG_IDENTIFIER, PENDING_APPLICANT_ROLE } from '../utils/constants';
@@ -93,25 +93,35 @@ export class MemberEventManager {
         const rankOptions = RANK_ROLES.map(r => ({ label: r.name, value: r.name }));
         const selectMenu = new StringSelectMenuBuilder().setCustomId('register_rank_select').setPlaceholder('Select your rank').addOptions(rankOptions);
         const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectMenu);
-        const payload = { content: 'Please select your rank.', components: [row] };
+        const payload = { content: 'Please select your rank.', components: [row], ephemeral: true };
 
         if (interaction.replied || interaction.deferred) {
             await interaction.editReply(payload);
         } else {
-            await interaction.reply({ ...payload, ephemeral: true });
+            await interaction.reply(payload);
         }
     }
 
-    private async showAllianceSelection(interaction: StringSelectMenuInteraction): Promise<void> {
+    private async showAllianceSelection(interaction: StringSelectMenuInteraction | ModalSubmitInteraction): Promise<void> {
         const allianceCategories = this.ssm.findAllianceCategories(interaction.guild!);
         if (allianceCategories.length === 0) {
-            await interaction.update({ content: 'No alliances available for registration.', components: [] });
+            const payload = { content: 'No alliances available for registration.', components: [] };
+            if (interaction.isStringSelectMenu()) {
+                await interaction.update(payload);
+            } else {
+                await interaction.reply({ ...payload, ephemeral: true });
+            }
             return;
         }
         const allianceOptions = allianceCategories.map(c => ({ label: c.name, value: c.name }));
         const selectMenu = new StringSelectMenuBuilder().setCustomId('register_alliance_select').setPlaceholder('Select your alliance').addOptions(allianceOptions);
         const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectMenu);
-        await interaction.update({ content: 'Please select your alliance.', components: [row] });
+
+        if (interaction.isStringSelectMenu()) {
+            await interaction.update({ content: 'Please select your alliance.', components: [row] });
+        } else {
+            await interaction.reply({ content: 'Please select your alliance.', components: [row], ephemeral: true });
+        }
     }
 
     private async showConfirmation(interaction: StringSelectMenuInteraction): Promise<void> {
@@ -152,7 +162,7 @@ export class MemberEventManager {
             await applicant.roles.add(candidateRole);
         }
 
-        const leadershipChannel = allianceCache.allianceCategory.children.cache.find(c => c.name.includes('leadership-channel')) as TextChannel;
+        const leadershipChannel = allianceCache.category.children.cache.find(c => c.name.endsWith('leadership-channel')) as TextChannel;
 
         if (!leadershipChannel) {
             await interaction.editReply({ content: 'Could not find the leadership channel for this alliance.' });
