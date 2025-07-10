@@ -4,7 +4,7 @@ import {
     ModalSubmitInteraction, ButtonInteraction, StringSelectMenuInteraction, Events
 } from 'discord.js';
 import { ServerSetupManager } from './setupServers';
-import { RANK_ROLES, SPECIAL_RANK_ROLES } from '../utils/constants';
+import { RANK_ROLES, SPECIAL_RANK_ROLES, ALLIANCE_TAG_IDENTIFIER, PENDING_APPLICANT_ROLE } from '../utils/constants';
 
 interface RegistrationState {
     inGameName?: string;
@@ -25,12 +25,27 @@ export class MemberEventManager {
 
     private async handleInteraction(interaction: Interaction<CacheType>): Promise<void> {
         if (!interaction.inGuild()) return;
+        if (!interaction.isButton() && !interaction.isModalSubmit() && !interaction.isStringSelectMenu()) return;
+
+        const member = interaction.member as GuildMember;
 
         if (interaction.isButton()) {
             const [action, userId, inGameName, rank, allianceName] = interaction.customId.split(':');
 
             switch (action) {
                 case 'register_start':
+                    const hasAllianceRole = member.roles.cache.some(role => role.name.endsWith(ALLIANCE_TAG_IDENTIFIER));
+                    if (hasAllianceRole) {
+                        await interaction.reply({ content: "You are already registered and cannot log in again.", ephemeral: true });
+                        return;
+                    }
+
+                    const isCandidate = member.roles.cache.some(role => role.name === PENDING_APPLICANT_ROLE.name);
+                    if (isCandidate) {
+                        await interaction.reply({ content: "You have already submitted an application. Please wait for it to be reviewed.", ephemeral: true });
+                        return;
+                    }
+
                     await this.showNameModal(interaction);
                     break;
                 case 'submit_application':
@@ -137,7 +152,7 @@ export class MemberEventManager {
             await applicant.roles.add(candidateRole);
         }
 
-        const leadershipChannel = allianceCache.allianceCategory.children.cache.find(c => c.name.includes('leadership-chat')) as TextChannel;
+        const leadershipChannel = allianceCache.allianceCategory.children.cache.find(c => c.name.includes('leadership-channel')) as TextChannel;
 
         if (!leadershipChannel) {
             await interaction.editReply({ content: 'Could not find the leadership channel for this alliance.' });
