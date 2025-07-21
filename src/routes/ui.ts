@@ -71,7 +71,20 @@ router.post('/settings', async (req, res) => {
 
         await saveSettings({ botToken, clientId, servers });
 
-        const manager = DiscordClientManager.getInstance();
+        const settings = await loadSettings();
+
+        let config = {
+            token: settings.botToken,
+            intents: [
+                GatewayIntentBits.Guilds,
+                GatewayIntentBits.GuildMessages,
+                GatewayIntentBits.MessageContent,
+                GatewayIntentBits.GuildMembers
+            ],
+            servers: settings.servers,
+        };
+
+        const manager = DiscordClientManager.getInstance(config);
         manager.updateConfig({ token: botToken, servers });
 
         res.status(200).json({ status: "success", message: 'Settings saved and bot restarted successfully' });

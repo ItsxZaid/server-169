@@ -1,4 +1,4 @@
-import { Client, Partials, Events, GatewayIntentBits, Guild } from 'discord.js';
+import { Client, Partials, Events, GatewayIntentBits, Guild, ChannelType, TextChannel } from 'discord.js';
 import EventEmitter from 'events';
 import { Logger } from '../utils/logger.js';
 import { Server } from '../utils/db.js';
@@ -6,6 +6,9 @@ import { ServerSetupManager } from './setupServers.js';
 import { MemberEventManager } from './memberEvents.js';
 import { EventScheduler } from './eventScheduler.js';
 import { EventHandler } from './eventHandler.js';
+import { BuffScheduler } from './buffScheduler.js';
+import { BuffManager } from './buffManager.js';
+import { loadBuffs } from '../utils/buffs.js';
 
 export interface DiscordClientConfig {
     token: string;
@@ -58,6 +61,7 @@ export class DiscordClientManager extends EventEmitter {
     }
 
     public static getInstance(config?: DiscordClientConfig): DiscordClientManager {
+
         if (!DiscordClientManager.instance) {
             if (!config || !config.token || !config.intents) {
                 throw new Error('DiscordClientManager must be initialized with a valid config on first access.');
@@ -130,6 +134,8 @@ export class DiscordClientManager extends EventEmitter {
             this.setStatus(ConnectionStatus.Connected);
             this.reconnectAttempts = 0;
 
+            await loadBuffs();
+
             const ssm = ServerSetupManager.getInstance(readyClient);
             await ssm.initializeAllGuilds();
             new MemberEventManager(readyClient, ssm);
@@ -137,6 +143,18 @@ export class DiscordClientManager extends EventEmitter {
             const eventScheduler = new EventScheduler(readyClient);
             await eventScheduler.initialize();
             new EventHandler(readyClient, ssm, eventScheduler);
+
+            const buffScheduler = new BuffScheduler(readyClient);
+            buffScheduler.initialize();
+
+            const buffManager = new BuffManager(readyClient, buffScheduler);
+            const guild = readyClient.guilds.cache.first();
+            if (guild) {
+                const buffChannel = guild.channels.cache.find(c => c.name === 'buff-management' && c.type === ChannelType.GuildText) as TextChannel;
+                if (buffChannel) {
+                    await buffManager.initialize(buffChannel);
+                }
+            }
         });
 
         this.client.on(Events.GuildCreate, async (guild: Guild) => {
