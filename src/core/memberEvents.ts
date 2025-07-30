@@ -30,7 +30,8 @@ export class MemberEventManager {
         const member = interaction.member as GuildMember;
 
         if (interaction.isButton()) {
-            const [action, userId, inGameName, rank, allianceName] = interaction.customId.split(':');
+            const customIdParts = interaction.customId.split(':');
+            const action = customIdParts[0];
 
             switch (action) {
                 case 'register_start':
@@ -52,10 +53,12 @@ export class MemberEventManager {
                     await this.submitApplication(interaction);
                     break;
                 case 'approve':
-                    await this.handleApproval(interaction, userId, inGameName, rank, allianceName);
+                    const [, approveUserId, approveInGameName, approveRank, approveAllianceName] = customIdParts;
+                    await this.handleApproval(interaction, approveUserId, approveInGameName, approveRank, approveAllianceName);
                     break;
                 case 'reject':
-                    await this.handleRejection(interaction, userId, allianceName);
+                    const [__, rejectUserId, rejectAllianceName] = customIdParts;
+                    await this.handleRejection(interaction, rejectUserId, rejectAllianceName);
                     break;
             }
         } else if (interaction.isModalSubmit()) {
@@ -75,6 +78,7 @@ export class MemberEventManager {
             }
         }
     }
+
 
     private async showNameModal(interaction: ButtonInteraction): Promise<void> {
         const modal = new ModalBuilder().setCustomId('register_name_modal').setTitle('Registration: In-Game Name');
